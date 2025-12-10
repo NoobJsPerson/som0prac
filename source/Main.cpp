@@ -1,19 +1,15 @@
 
 
 #include <plugin.h>
-#include <CMessages.h>
 #include <injector/injector.hpp>
 #include <windows.h>
-#include <cstdio>
-#include <CPickup.h>
-#include <CPickups.h>
 #include <CControllerConfigManager.h>
 #include <CHud.h>
+#include <CPad.h>
 #include "INIReader.h"
 
 using namespace plugin;
 
-// Structure passed to the function
 struct tPickupReference {
 	union {
 		struct {
@@ -24,42 +20,17 @@ struct tPickupReference {
 		int32_t num;
 	};
 };
-//class PickupHook;
-// Game memory (these are correct)
-static int32_t* aPickUpsCollected = (int32_t*)0x978628;   // bool array[620]
-static uint8_t* menuID = (uint8_t*)0xBA68A5;
-static bool* isPlayerInMenu = (bool*)0xBA67A4;
+
+int32_t* aPickUpsCollected = (int32_t*)0x978628;
+uint8_t* menuID = (uint8_t*)0xBA68A5;
+bool* isPlayerInMenu = (bool*)0xBA67A4;
 
 bool pickUpPickedUp = 0;
 bool pickUpJustPickedUp = 0;
 
-//typedef uint32_t KeyCode;
-
-
-
-
-//RsKeyCodes CControllerConfigManager::GetControllerKeyAssociatedWithAction(e_ControllerAction action, eControllerType type)
-//{
-//    return plugin::CallMethodAndReturn <RsKeyCodes, 0x52F4F0, CControllerConfigManager*, int>(this, action, type);
-//}
-
-
-
-
-
-
-
-
-
-
-//void CControllerConfigManager::SaveSettings(int file)
-//{
-//    plugin::CallMethod <0x52D200, CControllerConfigManager*, int>(this, file);
-//}
-
 
 // -------------------------------------------------------------------
-//  CORRECT REPLACEMENT FUNCTION (MATCHES REAL GAME SIGNATURE)
+//  IsPickUpPickedUp Replacement Function
 // -------------------------------------------------------------------
 bool __cdecl My_IsPickUpPickedUp(tPickupReference ref)
 {
@@ -82,22 +53,26 @@ bool __cdecl My_IsPickUpPickedUp(tPickupReference ref)
 	return picked;
 }
 
-// -------------------------------------------------------------------
-//  Automatically executed when ASI loads
-// -------------------------------------------------------------------
+
+
+
 class PickupHook {
-	// RsKeyCodes submissionKey = ControlsManager.GetControllerKeyAssociatedWithAction(TOGGLE_SUBMISSIONS, CONTROLLER_PAD);
 
 
 public:
 	size_t m_frame1 = 0;
 	size_t m_frame2 = -1;
 	bool lastIsSubJustPressed = 0;
-	int subKey;
+	int subKey1;
+	int subKey2;
+	int subMouse;
 	PickupHook() {
 
 		INIReader reader("save0m0prac.ini");
-		subKey = reader.GetInteger("binds", "subkey", 92);
+		subKey1 = reader.GetInteger("binds", "subkey1", 50);
+		subKey2 = reader.GetInteger("binds", "subkey2", -1);
+		subMouse = reader.GetInteger("binds", "submouse", -1);
+
 
 		Events::gameProcessEvent += [] { g_PickupHook.OnGameProcess(); };
 		// Console for debugging
@@ -110,6 +85,29 @@ public:
 
 		//printf("[ASI] Hook installed at 0x454B40\n");
 	}
+
+	bool GetIsMouseButtonDown() const {
+		switch (subMouse) {
+		case VK_LBUTTON:
+			return CPad::NewMouseControllerState.lmb;
+		case VK_RBUTTON:
+			return CPad::NewMouseControllerState.rmb;
+		case VK_MBUTTON:
+			return CPad::NewMouseControllerState.mmb;
+		case VK_XBUTTON1:
+			return CPad::NewMouseControllerState.bmx1;
+		case VK_XBUTTON2:
+			return CPad::NewMouseControllerState.bmx2;
+		}
+		return false;
+	}
+
+	bool IsSubPressed() const {
+		return ControlsManager.GetIsKeyboardKeyDown((RsKeyCodes)subKey1)
+			|| ControlsManager.GetIsKeyboardKeyDown((RsKeyCodes)subKey2)
+			|| GetIsMouseButtonDown();
+	}
+
 	void OnGameProcess()
 	{
 		bool lateEntered = 0;
@@ -125,7 +123,7 @@ public:
 
 
 
-		bool isSubJustDePressed = !ControlsManager.GetIsKeyboardKeyDown((RsKeyCodes)subKey) && lastIsSubJustPressed;
+		bool isSubJustDePressed = !IsSubPressed() && lastIsSubJustPressed;
 
 		if (isSubJustDePressed) {
 			m_frame2 = 0;
@@ -142,7 +140,8 @@ public:
 		if (!isSubJustDePressed && pickUpPickedUp && m_frame2 != -1) {
 
 			if (m_frame2 == 2) {
-				strcpy(msg, "YAY");
+				bool playerInVehicle = FindPlayerPed()->bInVehicle;
+				sprintf_s(msg, "YAY, in vehicle: %d", playerInVehicle);
 			}
 			else if (m_frame2 < 2) {
 				sprintf_s(msg, "You were %d frame(s) too late", 2 - m_frame2);
@@ -163,14 +162,14 @@ public:
 		}
 
 		if (*msg != 0) {
-			CMessages::ClearMessages(false);
-			CMessages::AddMessageJumpQ(msg, 2000, 0);
+			// CMessages::ClearMessages(false);
+			// CMessages::AddMessageJumpQ(msg, 2000, 0);
 			CHud::SetHelpMessage(msg, true, false, false);
 			*msg = 0;
 		}
 
 		m_frame1++;
 		if (m_frame2 != -1) m_frame2++;
-		lastIsSubJustPressed = ControlsManager.GetIsKeyboardKeyDown((RsKeyCodes)subKey);
+		lastIsSubJustPressed = IsSubPressed();
 	}
 } g_PickupHook;
