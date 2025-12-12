@@ -61,14 +61,6 @@ bool __cdecl My_IsPickUpPickedUp(tPickupReference ref)
 	return picked;
 }
 
-auto IsCharInAnyPoliceVehicle(CPed& ped) {
-	if (!(ped.bInVehicle && ped.m_pVehicle)) {
-		return false;
-	}
-	const auto veh = ped.m_pVehicle;
-	return veh->IsLawEnforcementVehicle() && veh->m_nModelIndex != eModelID::MODEL_PREDATOR;
-}
-
 class PickupHook {
 
 
