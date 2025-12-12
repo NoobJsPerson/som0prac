@@ -75,7 +75,7 @@ public:
 	int subKey1;
 	int subKey2;
 	int subMouse;
-	//bool playerInVehicle = 0;
+	bool playerInVehicle = 0;
 	//bool nextPlayerInVehicle = 0;
 
 	PickupHook() {
@@ -88,9 +88,9 @@ public:
 
 		Events::gameProcessEvent += [] { g_PickupHook.OnGameProcess(); };
 		//Console for debugging
-		AllocConsole();
+		/*AllocConsole();
 		freopen("CONOUT$", "w", stdout);
-		printf("[ASI] Hook init\n");
+		printf("[ASI] Hook init\n");*/
 
 		// Replace full function at 0x454B40
 		injector::MakeJMP(0x454B40, My_IsPickUpPickedUp);
@@ -146,8 +146,8 @@ public:
 
 		CPed* playa;
 		Command<Commands::GET_PLAYER_CHAR>(0, &playa);
-
-		if (Command<Commands::IS_CHAR_IN_ANY_POLICE_VEHICLE>(playa) && !lastPlayerInVehicle) {
+		playerInVehicle = Command<Commands::IS_CHAR_IN_ANY_POLICE_VEHICLE>(playa);
+		if (playerInVehicle && !lastPlayerInVehicle) {
 			m_frameTest = 0;
 		}
 
@@ -184,7 +184,9 @@ public:
 			static char notInVehMsg[255];
 			if (m_frame2 == (2 -  lastSubWasMouse)) {
 				sprintf_s(notInVehMsg, "You didn't get on the vehicle fast enough, got in %d frame(s) before pickup (minimum 3)", m_frameTest);
-				sprintf_s(msg, m_frameTest >= 3 ? "Reminder to not do this with keyboard" : notInVehMsg);
+				sprintf_s(msg, m_frameTest >= 3 ?
+					playerInVehicle ? "Reminder to do this with keyboard" : "You forgot to get on the bike"
+					: notInVehMsg);
 			}
 			else if (m_frame2 < (2 -  lastSubWasMouse)) {
 				sprintf_s(notInVehMsg, " and you didn't get on the vehicle fast enough, got in %d frame(s) before pickup (minimum 3)", m_frameTest);
@@ -225,6 +227,6 @@ public:
 		if (m_frame2 != -1) m_frame2++;
 		lastIsSubKeyPressed = IsSubKeyPressed();
 		lastIsSubMousePressed = GetIsMouseButtonDown();
-		lastPlayerInVehicle = Command<Commands::IS_CHAR_IN_ANY_POLICE_VEHICLE>(playa);
+		lastPlayerInVehicle = playerInVehicle;
 	}
 } g_PickupHook;
